@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MSM Frontend-Backend Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8fafc;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .header {
+            text-align: center;
+            color: #1e293b;
+            margin-bottom: 30px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success { background-color: #dcfce7; color: #166534; }
+        .error { background-color: #fee2e2; color: #991b1b; }
+        .info { background-color: #dbeafe; color: #1e40af; }
+        button {
+            background-color: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #5a67d8; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        input, select {
+            padding: 8px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            margin: 5px;
+            width: 200px;
+        }
+        .server-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 5px;
+            padding: 10px;
+        }
+        .server-item {
+            padding: 10px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .server-item:last-child { border-bottom: none; }
+        .websocket-log {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 5px;
+            padding: 10px;
+            background-color: #f8fafc;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .log-entry {
+            margin: 2px 0;
+            padding: 2px 5px;
+        }
+        .log-client { color: #059669; }
+        .log-server { color: #1d4ed8; }
+        .log-system { color: #6b7280; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚀 Minimal Server Manager - Frontend Test</h1>
+        <p>Testing frontend-backend communication</p>
+    </div>
+
+    <div class="container">
+        <h2>🔗 API Connection Test</h2>
+        <div id="apiStatus" class="status info">Testing API connection...</div>
+        <button onclick="testAPI()">Test API Connection</button>
+        <button onclick="getServers()">Get Servers</button>
+    </div>
+
+    <div class="container">
+        <h2>🖥️ Server Management</h2>
+        <div>
+            <input type="text" id="serverName" placeholder="Server Name" value="Test Server">
+            <input type="text" id="serverIP" placeholder="IP Address" value="127.0.0.1">
+            <input type="number" id="serverPort" placeholder="Port" value="22">
+            <input type="text" id="serverUser" placeholder="Username" value="testuser">
+            <button onclick="createServer()">Create Server</button>
+        </div>
+        <div id="serverList" class="server-list">
+            <p>No servers yet. Click "Get Servers" to load.</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>📡 WebSocket Test</h2>
+        <div id="wsStatus" class="status info">WebSocket not connected</div>
+        <button onclick="connectWebSocket()">Connect WebSocket</button>
+        <button onclick="sendPing()">Send Ping</button>
+        <button onclick="disconnectWebSocket()">Disconnect</button>
+        <div id="wsLog" class="websocket-log">
+            <p>WebSocket log will appear here...</p>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        let ws = null;
+        let wsConnected = false;
+
+        // API Functions
+        async function testAPI() {
+            const statusDiv = document.getElementById('apiStatus');
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                statusDiv.className = 'status success';
+                statusDiv.textContent = `✅ API Connected: ${JSON.stringify(data)}`;
+            } catch (error) {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = `❌ API Error: ${error.message}`;
+            }
+        }
+
+        async function getServers() {
+            const statusDiv = document.getElementById('apiStatus');
+            const serverListDiv = document.getElementById('serverList');
+            
+            try {
+                const response = await fetch(`${API_BASE}/servers/`);
+                const servers = await response.json();
+                
+                statusDiv.className = 'status success';
+                statusDiv.textContent = `✅ Found ${servers.length} servers`;
+                
+                if (servers.length === 0) {
+                    serverListDiv.innerHTML = '<p>No servers found. Create one above!</p>';
+                } else {
+                    serverListDiv.innerHTML = servers.map(server => `
+                        <div class="server-item">
+                            <div>
+                                <strong>${server.name}</strong><br>
+                                <small>${server.ip}:${server.port} | ${server.user}</small>
+                            </div>
+                            <div>
+                                <span class="status ${server.status === 'active' ? 'success' : 'error'}">${server.status}</span>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = `❌ Error fetching servers: ${error.message}`;
+            }
+        }
+
+        async function createServer() {
+            const statusDiv = document.getElementById('apiStatus');
+            const serverData = {
+                name: document.getElementById('serverName').value,
+                ip: document.getElementById('serverIP').value,
+                port: parseInt(document.getElementById('serverPort').value),
+                user: document.getElementById('serverUser').value
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/servers/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(serverData)
+                });
+
+                if (response.ok) {
+                    const server = await response.json();
+                    statusDiv.className = 'status success';
+                    statusDiv.textContent = `✅ Server created: ${server.name}`;
+                    getServers(); // Refresh the list
+                } else {
+                    const error = await response.json();
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = `❌ Error: ${error.detail || 'Unknown error'}`;
+                }
+            } catch (error) {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = `❌ Error creating server: ${error.message}`;
+            }
+        }
+
+        // WebSocket Functions
+        function connectWebSocket() {
+            const statusDiv = document.getElementById('wsStatus');
+            const logDiv = document.getElementById('wsLog');
+            
+            try {
+                ws = new WebSocket('ws://localhost:8000/ws');
+                
+                ws.onopen = function(event) {
+                    wsConnected = true;
+                    statusDiv.className = 'status success';
+                    statusDiv.textContent = '✅ WebSocket Connected';
+                    addLog('System', 'WebSocket connected successfully');
+                    
+                    // Subscribe to updates
+                    ws.send(JSON.stringify({ type: 'subscribe' }));
+                };
+
+                ws.onmessage = function(event) {
+                    try {
+                        const message = JSON.parse(event.data);
+                        addLog('Server', JSON.stringify(message, null, 2));
+                    } catch (error) {
+                        addLog('Server', event.data);
+                    }
+                };
+
+                ws.onclose = function(event) {
+                    wsConnected = false;
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = '❌ WebSocket Disconnected';
+                    addLog('System', `WebSocket closed: ${event.code} ${event.reason}`);
+                };
+
+                ws.onerror = function(error) {
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = '❌ WebSocket Error';
+                    addLog('System', 'WebSocket error occurred');
+                };
+
+            } catch (error) {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = `❌ WebSocket Error: ${error.message}`;
+                addLog('System', `Connection error: ${error.message}`);
+            }
+        }
+
+        function sendPing() {
+            if (wsConnected && ws) {
+                ws.send(JSON.stringify({ type: 'ping', timestamp: new Date().toISOString() }));
+                addLog('Client', 'Ping sent');
+            } else {
+                addLog('System', 'WebSocket not connected');
+            }
+        }
+
+        function disconnectWebSocket() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+
+        function addLog(sender, message) {
+            const logDiv = document.getElementById('wsLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const logClass = `log-entry log-${sender.toLowerCase()}`;
+            
+            if (logDiv.children.length === 1 && logDiv.children[0].tagName === 'P') {
+                logDiv.innerHTML = '';
+            }
+            
+            logDiv.innerHTML += `<div class="${logClass}"><strong>${timestamp} [${sender}]</strong> ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        // Auto-test on page load
+        window.onload = function() {
+            testAPI();
+        };
+    </script>
+</body>
+</html>
