@@ -8,6 +8,7 @@ import ServerDetail from './pages/ServerDetail';
 import ServerCreate from './pages/ServerCreate';
 import Settings from './pages/Settings';
 import Dashboard from './pages/Dashboard';
+import Monitoring from './pages/Monitoring';
 import WebSocketTest from './components/WebSocketTest';
 
 // Import components
@@ -29,6 +30,7 @@ function App() {
               <Route path="/servers" element={<ServerList />} />
               <Route path="/servers/new" element={<ServerCreate />} />
               <Route path="/servers/:id" element={<ServerDetail />} />
+              <Route path="/monitoring" element={<Monitoring />} />
               <Route path="/alerts" element={<AlertList />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/websocket-test" element={<WebSocketTest />} />
