@@ -129,6 +129,10 @@ class ApiService {
     return this.request(`/servers/${serverId}/metrics`);
   }
 
+  async getServerSpecs(serverId) {
+    return this.request(`/servers/${serverId}/specs`);
+  }
+
   // Alert management
   async getAlerts() {
     return this.request('/alerts/');

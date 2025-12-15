@@ -9,8 +9,10 @@ const ServerDetail = () => {
   const [server, setServer] = useState(null);
   const [metrics, setMetrics] = useState(null);
   const [realtimeMetrics, setRealtimeMetrics] = useState(null);
+  const [serverSpecs, setServerSpecs] = useState(null);
   const [loading, setLoading] = useState(true);
   const [metricsLoading, setMetricsLoading] = useState(false);
+  const [specsLoading, setSpecsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [wsStatus, setWsStatus] = useState('disconnected');
   const [lastUpdate, setLastUpdate] = useState(null);
@@ -19,6 +21,7 @@ const ServerDetail = () => {
   useEffect(() => {
     if (id) {
       fetchServerDetails();
+      fetchServerSpecs();
       initializeWebSocket();
     }
     
@@ -87,6 +90,19 @@ const ServerDetail = () => {
       console.error('Error fetching server details:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchServerSpecs = async () => {
+    try {
+      setSpecsLoading(true);
+      const specsData = await apiService.getServerSpecs(id);
+      setServerSpecs(specsData);
+    } catch (error) {
+      console.error('Error fetching server specs:', error);
+      setServerSpecs(null);
+    } finally {
+      setSpecsLoading(false);
     }
   };
 
@@ -297,48 +313,179 @@ const ServerDetail = () => {
         <div className="p-6">
           {/* Overview Tab */}
           {activeTab === 'overview' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h4 className="text-lg font-semibold mb-4">Server Information</h4>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Name:</span>
-                    <span className="font-medium">{server.name}</span>
+            <div className="space-y-6">
+              {/* Server Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h4 className="text-lg font-semibold mb-4">Server Information</h4>
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Name:</span>
+                      <span className="font-medium">{server.name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">IP Address:</span>
+                      <span className="font-mono">{server.ip}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Port:</span>
+                      <span className="font-medium">{server.port}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">User:</span>
+                      <span className="font-medium">{server.user}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Status:</span>
+                      <span className={`status-badge ${
+                        server.status === 'active' ? 'status-online' : 'status-offline'
+                      }`}>
+                        {server.status}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">IP Address:</span>
-                    <span className="font-mono">{server.ip}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Port:</span>
-                    <span className="font-medium">{server.port}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">User:</span>
-                    <span className="font-medium">{server.user}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Status:</span>
-                    <span className={`status-badge ${
-                      server.status === 'active' ? 'status-online' : 'status-offline'
-                    }`}>
-                      {server.status}
-                    </span>
+                </div>
+                <div>
+                  <h4 className="text-lg font-semibold mb-4">Timestamps</h4>
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Created:</span>
+                      <span className="font-medium">{new Date(server.created_at).toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Last Updated:</span>
+                      <span className="font-medium">{new Date(server.updated_at).toLocaleString()}</span>
+                    </div>
                   </div>
                 </div>
               </div>
+
+              {/* Hardware Specifications */}
               <div>
-                <h4 className="text-lg font-semibold mb-4">Timestamps</h4>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Created:</span>
-                    <span className="font-medium">{new Date(server.created_at).toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Last Updated:</span>
-                    <span className="font-medium">{new Date(server.updated_at).toLocaleString()}</span>
-                  </div>
+                <div className="flex justify-between items-center mb-4">
+                  <h4 className="text-lg font-semibold">Hardware Specifications</h4>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={fetchServerSpecs}
+                    disabled={specsLoading}
+                    title="Refresh hardware specifications"
+                  >
+                    {specsLoading ? (
+                      <div className="spinner mr-2"></div>
+                    ) : (
+                      <i className="fas fa-sync-alt mr-2"></i>
+                    )}
+                    Refresh
+                  </button>
                 </div>
+                
+                {serverSpecs && serverSpecs.cpu_model ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {/* CPU Information */}
+                    <div className="card">
+                      <h5 className="font-semibold mb-2 flex items-center">
+                        <i className="fas fa-microchip mr-2 text-blue-500"></i>
+                        CPU
+                      </h5>
+                      <div className="space-y-2 text-sm">
+                        <div>
+                          <span className="text-gray-600">Model:</span>
+                          <div className="font-medium">{serverSpecs.cpu_model}</div>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Cores:</span>
+                          <div className="font-medium">{serverSpecs.cpu_cores || 'Unknown'}</div>
+                        </div>
+                        {serverSpecs.cpu_threads && (
+                          <div>
+                            <span className="text-gray-600">Threads:</span>
+                            <div className="font-medium">{serverSpecs.cpu_threads}</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Memory Information */}
+                    <div className="card">
+                      <h5 className="font-semibold mb-2 flex items-center">
+                        <i className="fas fa-memory mr-2 text-green-500"></i>
+                        Memory
+                      </h5>
+                      <div className="space-y-2 text-sm">
+                        <div>
+                          <span className="text-gray-600">Total RAM:</span>
+                          <div className="font-medium">{serverSpecs.total_ram || 'Unknown'}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Storage Information */}
+                    <div className="card">
+                      <h5 className="font-semibold mb-2 flex items-center">
+                        <i className="fas fa-hdd mr-2 text-purple-500"></i>
+                        Storage
+                      </h5>
+                      <div className="space-y-2 text-sm">
+                        {serverSpecs.disk_info && serverSpecs.disk_info.length > 0 ? (
+                          <div>
+                            <span className="text-gray-600">Disks:</span>
+                            <div className="font-medium">{serverSpecs.disk_info.length} device(s)</div>
+                          </div>
+                        ) : (
+                          <div className="text-gray-500">No disk information available</div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Operating System */}
+                    <div className="card">
+                      <h5 className="font-semibold mb-2 flex items-center">
+                        <i className="fas fa-desktop mr-2 text-orange-500"></i>
+                        Operating System
+                      </h5>
+                      <div className="space-y-2 text-sm">
+                        <div>
+                          <span className="text-gray-600">OS:</span>
+                          <div className="font-medium">{serverSpecs.os_info || 'Unknown'}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Last Updated */}
+                    {serverSpecs.last_updated && (
+                      <div className="card">
+                        <h5 className="font-semibold mb-2 flex items-center">
+                          <i className="fas fa-clock mr-2 text-gray-500"></i>
+                          Last Updated
+                        </h5>
+                        <div className="space-y-2 text-sm">
+                          <div>
+                            <span className="text-gray-600">Updated:</span>
+                            <div className="font-medium">
+                              {new Date(serverSpecs.last_updated).toLocaleString()}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <i className="fas fa-info-circle text-4xl text-gray-300 mb-4"></i>
+                    <p className="text-gray-500 mb-4">
+                      {specsLoading ? 'Loading hardware specifications...' : 'No hardware specifications available'}
+                    </p>
+                    {!specsLoading && (
+                      <button
+                        className="btn btn-primary btn-sm"
+                        onClick={fetchServerSpecs}
+                      >
+                        <i className="fas fa-download mr-2"></i>
+                        Fetch Specifications
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}

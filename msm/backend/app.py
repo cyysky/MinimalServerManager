@@ -673,6 +673,69 @@ async def get_server_metrics(server_id: int):
     finally:
         db.close()
 
+@app.get("/servers/{server_id}/specs", response_model=dict)
+async def get_server_specs(server_id: int):
+    """Get server hardware specifications"""
+    db = SessionLocal()
+    try:
+        server = db.query(Server).filter(Server.id == server_id).first()
+        if not server:
+            raise HTTPException(status_code=404, detail="Server not found")
+        
+        if not server.specs or not server.specs.cpu_model:
+            # If no specs exist or they have null values, try to get them from the server
+            if server_id not in ssh_service.clients:
+                use_key = server.ssh_key_path is not None
+                success, message = ssh_service.connect(
+                    server_id=server_id,
+                    hostname=server.ip,
+                    port=server.port,
+                    username=server.user,
+                    password=server.password_encrypted if not use_key else None,
+                    key_path=server.ssh_key_path if use_key else None
+                )
+                
+                if success:
+                    hardware_info = ssh_service.get_hardware_info(server_id)
+                    if hardware_info:
+                        # Update the database with new specs
+                        if not server.specs:
+                            server.specs = ServerSpec(server_id=server_id)
+                        
+                        server.specs.cpu_model = hardware_info.get('cpu_model', '')
+                        server.specs.cpu_cores = hardware_info.get('cpu_cores', 0)
+                        server.specs.cpu_threads = hardware_info.get('cpu_threads', None)
+                        server.specs.total_ram = hardware_info.get('total_ram', '')
+                        server.specs.disk_info = json.dumps(hardware_info.get('disks', []))
+                        server.specs.os_info = hardware_info.get('os_info', '')
+                        server.specs.last_updated = datetime.utcnow()
+                        db.commit()
+        
+        if server.specs:
+            return {
+                "id": server.specs.id,
+                "cpu_model": server.specs.cpu_model,
+                "cpu_cores": server.specs.cpu_cores,
+                "cpu_threads": server.specs.cpu_threads,
+                "total_ram": server.specs.total_ram,
+                "disk_info": json.loads(server.specs.disk_info) if server.specs.disk_info else [],
+                "os_info": server.specs.os_info,
+                "last_updated": server.specs.last_updated.isoformat() if server.specs.last_updated else None
+            }
+        else:
+            return {"message": "No specifications available for this server"}
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+@app.get("/servers/{server_id}/metrics/realtime", response_model=dict)
+async def get_realtime_metrics(server_id: int):
+    """Get real-time metrics for a server"""
+    # This is an alias for the regular metrics endpoint
+    return await get_server_metrics(server_id)
+
 # Real-time status endpoints
 @app.get("/status/realtime")
 async def get_realtime_status():

@@ -67,6 +67,7 @@ module.exports = (env, argv) => {
       port: 3000,
       hot: true,
       open: false,
+      historyApiFallback: true,
     },
     mode: isProduction ? 'production' : 'development',
     devtool: isProduction ? 'source-map' : 'eval-source-map',

@@ -1,4 +1,3 @@
-"data/"  
-"logs/"  
-"__pycache__/"  
-".env" 
+data/
+logs/ 
+.env

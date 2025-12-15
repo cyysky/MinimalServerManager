@@ -143,7 +143,7 @@ class SSHService:
             return False, "", "Not connected to server"
             
         try:
-            ssh = self.clients[server_id]
+            ssh = self.clients[server_id]['ssh']
             stdin, stdout, stderr = ssh.exec_command(command)
             
             # Read output and error
@@ -164,7 +164,7 @@ class SSHService:
             return None
             
         try:
-            ssh = self.clients[server_id]
+            ssh = self.clients[server_id]['ssh']
             
             # Get hardware information
             hardware = {}
@@ -204,7 +204,7 @@ class SSHService:
             return None
             
         try:
-            ssh = self.clients[server_id]
+            ssh = self.clients[server_id]['ssh']
             
             metrics = {}
             
@@ -238,7 +238,7 @@ class SSHService:
         """
         if server_id in self.clients:
             try:
-                self.clients[server_id].close()
+                self.clients[server_id]['ssh'].close()
             except:
                 pass
             finally:
@@ -296,13 +296,47 @@ class SSHService:
     
     def _extract_cpu_usage(self, cpu_output: str) -> Optional[Dict]:
         """Extract CPU usage from top output"""
-        match = re.search(r'(\d+\.\d)%us', cpu_output)
+        # Handle the format: %Cpu(s):  0.7 us,  0.7 sy,  0.0 ni, 98.5 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+        match = re.search(r'%Cpu\(s\):\s*(\d+\.\d+)\s*us,\s*(\d+\.\d+)\s*sy,\s*(\d+\.\d+)\s*ni,\s*(\d+\.\d+)\s*id', cpu_output)
         if match:
             user = float(match.group(1))
-            match = re.search(r'(\d+\.\d)%sy', cpu_output)
-            system = float(match.group(1)) if match else 0.0
-            match = re.search(r'(\d+\.\d)%id', cpu_output)
-            idle = float(match.group(1)) if match else 0.0
+            system = float(match.group(2))
+            nice = float(match.group(3))
+            idle = float(match.group(4))
+            
+            return {
+                'user': user,
+                'system': system,
+                'nice': nice,
+                'idle': idle,
+                'totalUsage': user + system + nice
+            }
+        
+        # Alternative pattern for different formats
+        match = re.search(r'(\d+\.\d+)\s*us,\s*(\d+\.\d+)\s*sy,\s*(\d+\.\d+)\s*ni,\s*(\d+\.\d+)\s*id', cpu_output)
+        if match:
+            user = float(match.group(1))
+            system = float(match.group(2))
+            nice = float(match.group(3))
+            idle = float(match.group(4))
+            
+            return {
+                'user': user,
+                'system': system,
+                'nice': nice,
+                'idle': idle,
+                'totalUsage': user + system + nice
+            }
+        
+        # Fallback: try to extract individual values
+        user_match = re.search(r'(\d+\.\d+)\s*us', cpu_output)
+        system_match = re.search(r'(\d+\.\d+)\s*sy', cpu_output)
+        idle_match = re.search(r'(\d+\.\d+)\s*id', cpu_output)
+        
+        if user_match or system_match or idle_match:
+            user = float(user_match.group(1)) if user_match else 0.0
+            system = float(system_match.group(1)) if system_match else 0.0
+            idle = float(idle_match.group(1)) if idle_match else 0.0
             
             return {
                 'user': user,
@@ -310,6 +344,7 @@ class SSHService:
                 'idle': idle,
                 'totalUsage': user + system
             }
+        
         return None
     
     def _extract_memory_usage(self, mem_output: str) -> Optional[Dict]:
